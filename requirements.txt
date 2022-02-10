@@ -1,0 +1,8 @@
+fastapi==0.70.1
+uvicorn==0.16.0
+SQLAlchemy==1.4.18
+pydantic==1.8.2
+opengraph-py3==0.71
+requests==2.26.0
+alembic==1.6.5
+pytest==6.2.4
