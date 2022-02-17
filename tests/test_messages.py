@@ -4,15 +4,17 @@ import os
 import pytest
 import requests
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from tests.crud import create_user, create_message
 from constants import MESSAGES_LIMIT
 
 pytestmark = pytest.mark.asyncio(asyncio_mode="strict")
 
 
-async def test_list_messages(async_client: AsyncClient) -> None:
-    t = (await async_client.post("account/reg", json={"login": "username", "password": "password"})).json()["token"]
-    _ = [await async_client.post("message", json={"text": f"text {i}"}, headers={"AuthToken": t}) for i in range(50)]
+async def test_list_messages(async_client: AsyncClient, db_session: AsyncSession) -> None:
+    user_id, _ = await create_user(db_session, "username", "password")
+    _ = [await create_message(db_session, user_id, text=f"text {i}") for i in range(50)]
 
     response = await async_client.get("messages")
     assert response.status_code == 200
@@ -31,31 +33,31 @@ async def test_list_messages(async_client: AsyncClient) -> None:
     assert response.json() == [{'text': f'text {i + 2}', 'id': i + 3, 'user_id': 1} for i in range(MESSAGES_LIMIT + 3)]
 
 
-async def test_get_message_success(async_client: AsyncClient) -> None:
-    token = (await async_client.post("account/reg", json={"login": "username", "password": "password"})).json()["token"]
-    await async_client.post("message", json={"text": "test text"}, headers={"AuthToken": token})
+async def test_get_message_success(async_client: AsyncClient, db_session: AsyncSession) -> None:
+    user_id, _ = await create_user(db_session, "username", "password")
+    await create_message(db_session, user_id, text="test text")
 
     response = await async_client.get("message?message_id=1")
     assert response.status_code == 200
     assert response.json() == {'text': 'test text', 'id': 1, 'user_id': 1, 'url': None, 'files': []}
 
 
-async def test_get_message_error_message_not_found(async_client: AsyncClient) -> None:
+async def test_get_message_error_message_not_found(async_client: AsyncClient, db_session: AsyncSession) -> None:
     response = await async_client.get("message?message_id=1")
     assert response.status_code == 404
     assert response.json() == {'detail': 'Message not found'}
 
 
-async def test_create_message_success_text(async_client: AsyncClient) -> None:
-    token = (await async_client.post("account/reg", json={"login": "username", "password": "password"})).json()["token"]
+async def test_create_message_success_text(async_client: AsyncClient, db_session: AsyncSession) -> None:
+    _, token = await create_user(db_session, "username", "password")
 
     response = await async_client.post("message", json={"text": "test text"}, headers={"AuthToken": token})
     assert response.status_code == 200
     assert response.json() == {'text': 'test text', 'id': 1, 'user_id': 1, 'url': None, 'files': []}
 
 
-async def test_create_message_success_files(async_client: AsyncClient) -> None:
-    token = (await async_client.post("account/reg", json={"login": "username", "password": "password"})).json()["token"]
+async def test_create_message_success_files(async_client: AsyncClient, db_session: AsyncSession) -> None:
+    _, token = await create_user(db_session, "username", "password")
 
     # я привык запускать тесты из Pycharm, который запускает тесты из папки тестов, но общие тесты запускаются из корня
     if "tests" in os.listdir(os.curdir):
@@ -88,8 +90,8 @@ async def test_create_message_success_files(async_client: AsyncClient) -> None:
     assert data == {'text': None, 'id': 1, 'user_id': 1, 'url': None}
 
 
-async def test_create_message_success_url(async_client: AsyncClient) -> None:
-    token = (await async_client.post("account/reg", json={"login": "username", "password": "password"})).json()["token"]
+async def test_create_message_success_url(async_client: AsyncClient, db_session: AsyncSession) -> None:
+    _, token = await create_user(db_session, "username", "password")
 
     resp = await async_client.post("message", json={"url": "https://www.opengraph.xyz"}, headers={"AuthToken": token})
     assert resp.status_code == 200
@@ -105,53 +107,50 @@ async def test_create_message_success_url(async_client: AsyncClient) -> None:
                     'url': {'id': 1, 'title': 'OpenGraph - Preview Social Media Share and Generate Metatags'}}
 
 
-async def test_create_message_error_empty(async_client: AsyncClient) -> None:
-    token = (await async_client.post("account/reg", json={"login": "username", "password": "password"})).json()["token"]
+async def test_create_message_error_empty(async_client: AsyncClient, db_session: AsyncSession) -> None:
+    _, token = await create_user(db_session, "username", "password")
 
     response = await async_client.post("message", json={}, headers={"AuthToken": token})
     assert response.status_code == 404
     assert response.json() == {'detail': 'Must be text or files or url'}
 
 
-async def test_create_message_error_user_not_found(async_client: AsyncClient) -> None:
+async def test_create_message_error_user_not_found(async_client: AsyncClient, db_session: AsyncSession) -> None:
     response = await async_client.post("message", json={"text": "test text"}, headers={"AuthToken": "1"})
     assert response.status_code == 404
     assert response.json() == {'detail': 'User not found'}
 
 
-async def test_delete_message_success(async_client: AsyncClient) -> None:
-    token = (await async_client.post("account/reg", json={"login": "username", "password": "password"})).json()["token"]
-
-    await async_client.post("message", json={"text": "test text"}, headers={"AuthToken": token})
+async def test_delete_message_success(async_client: AsyncClient, db_session: AsyncSession) -> None:
+    user_id, token = await create_user(db_session, "username", "password")
+    await create_message(db_session, user_id, text="test text")
 
     response = await async_client.delete("message?message_id=1", headers={"AuthToken": token})
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
 
-async def test_delete_message_error_no_message(async_client: AsyncClient) -> None:
-    token = (await async_client.post("account/reg", json={"login": "username", "password": "password"})).json()["token"]
+async def test_delete_message_error_no_message(async_client: AsyncClient, db_session: AsyncSession) -> None:
+    _, token = await create_user(db_session, "username", "password")
 
     response = await async_client.delete("message?message_id=1", headers={"AuthToken": token})
     assert response.status_code == 404
     assert response.json() == {"detail": "Message not found"}
 
 
-async def test_delete_message_error_bad_user(async_client: AsyncClient) -> None:
-    token = (await async_client.post("account/reg", json={"login": "username", "password": "password"})).json()["token"]
-    bad_t = (await async_client.post("account/reg", json={"login": "bad_user", "password": "password"})).json()["token"]
-
-    await async_client.post("message", json={"text": "test text"}, headers={"AuthToken": token})
+async def test_delete_message_error_bad_user(async_client: AsyncClient, db_session: AsyncSession) -> None:
+    user_id, token = await create_user(db_session, "username_1", "password")
+    _, bad_t = await create_user(db_session, "username_2", "password")
+    await create_message(db_session, user_id, text="test text")
 
     response = await async_client.delete("message?message_id=1", headers={"AuthToken": bad_t})
     assert response.status_code == 404
     assert response.json() == {"detail": "This user dont has access to message"}
 
 
-async def test_like_success(async_client: AsyncClient) -> None:
-    token = (await async_client.post("account/reg", json={"login": "username", "password": "password"})).json()["token"]
-
-    await async_client.post("message", json={"text": "test text"}, headers={"AuthToken": token})
+async def test_like_success(async_client: AsyncClient, db_session: AsyncSession) -> None:
+    user_id, token = await create_user(db_session, "username", "password")
+    await create_message(db_session, user_id, text="test text")
 
     for i in range(1, 4):
         response = await async_client.post("message/like?message_id=1", headers={"AuthToken": token})
@@ -159,28 +158,27 @@ async def test_like_success(async_client: AsyncClient) -> None:
         assert response.json() == {'like': bool(i % 2)}
 
 
-async def test_like_success_like_different_for_others(async_client: AsyncClient) -> None:
-    t_1 = (await async_client.post("account/reg", json={"login": "username_1", "password": "password"})).json()["token"]
-    t_2 = (await async_client.post("account/reg", json={"login": "username_2", "password": "password"})).json()["token"]
-
-    await async_client.post("message", json={"text": "test text"}, headers={"AuthToken": t_1})
+async def test_like_success_like_different_for_others(async_client: AsyncClient, db_session: AsyncSession) -> None:
+    user_id, t_1 = await create_user(db_session, "username_1", "password")
+    _, t_2 = await create_user(db_session, "username_2", "password")
+    await create_message(db_session, user_id, text="test text")
 
     assert (await async_client.post("message/like?message_id=1", headers={"AuthToken": t_1})).json() == {'like': True}
     assert (await async_client.post("message/like?message_id=1", headers={"AuthToken": t_2})).json() == {'like': True}
     assert (await async_client.post("message/like?message_id=1", headers={"AuthToken": t_1})).json() == {'like': False}
 
 
-async def test_like_error_bad_message(async_client: AsyncClient) -> None:
-    token = (await async_client.post("account/reg", json={"login": "username", "password": "password"})).json()["token"]
+async def test_like_error_bad_message(async_client: AsyncClient, db_session: AsyncSession) -> None:
+    _, token = await create_user(db_session, "username", "password")
 
     response = await async_client.post("message/like?message_id=1", headers={"AuthToken": token})
     assert response.status_code == 404
     assert response.json() == {"detail": "Message not found"}
 
 
-async def test_like_error_bad_user(async_client: AsyncClient) -> None:
-    token = (await async_client.post("account/reg", json={"login": "username", "password": "password"})).json()["token"]
-    await async_client.post("message", json={"text": "test text"}, headers={"AuthToken": token})
+async def test_like_error_bad_user(async_client: AsyncClient, db_session: AsyncSession) -> None:
+    user_id, token = await create_user(db_session, "username", "password")
+    await create_message(db_session, user_id, text="test text")
 
     response = await async_client.post("message/like?message_id=1", headers={"AuthToken": ""})
     assert response.status_code == 404
