@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, ForeignKey, Text, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import relationship
 
 from database import Base
@@ -17,13 +18,16 @@ class Message(Base):
 
     likes = relationship("Like", back_populates="message")
 
-    def serialize(self) -> dict:
+    async def serialize(self, db: AsyncSession) -> dict:
+        files = [el[0] for el in list(await db.execute(select(MessageFile).where(MessageFile.message_id == self.id)))]
+        url_list = list(await db.execute(select(MessageUrl).where(MessageUrl.message_id == self.id)))
+        url = (await url_list[0][0].serialize(db)) if url_list else None
         return {
             "id": self.id,
             "user_id": self.user_id,
             "text": self.text,
-            "files": [file.serialize() for file in self.files],
-            "url": self.url.serialize() if self.url else None
+            "files": [await file.serialize(db) for file in files],
+            "url": url
         }
 
 
@@ -36,7 +40,7 @@ class MessageFile(Base):
 
     message = relationship("Message", back_populates="files")
 
-    def serialize(self) -> dict:
+    async def serialize(self, _: AsyncSession) -> dict:
         return {"id": self.id, "url": self.url}
 
 
@@ -50,7 +54,7 @@ class MessageUrl(Base):
 
     message = relationship("Message", back_populates="url")
 
-    def serialize(self) -> dict:
+    async def serialize(self, _: AsyncSession) -> dict:
         return {"id": self.id, "image": self.image, "title": self.title}
 
 

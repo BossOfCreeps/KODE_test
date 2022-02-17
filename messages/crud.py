@@ -1,17 +1,19 @@
 import warnings
+from typing import Optional
 
 from opengraph_py3 import OpenGraph
-from sqlalchemy.orm import Session
+from sqlalchemy import select, delete
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from messages import models, schemas
 from messages.lib import save_file_from_url, save_file_from_base64
 
 
-def get_messages(db: Session, limit: int, offset: int) -> list[schemas.MessageForList]:
-    return db.query(models.Message).offset(offset).limit(limit).all()
+async def get_messages(db: AsyncSession, limit: int, offset: int) -> list[schemas.MessageForList]:
+    return list(el[0] for el in tuple(await db.execute(select(models.Message))))[offset:][:limit]
 
 
-def create_message(db: Session, message: schemas.MassageCreate, user_id: int) -> models.Message:
+async def create_message(db: AsyncSession, message: schemas.MassageCreate, user_id: int) -> models.Message:
     message_dict = message.dict()
 
     # файлы передаются в base64
@@ -31,29 +33,28 @@ def create_message(db: Session, message: schemas.MassageCreate, user_id: int) ->
 
     db_item = models.Message(text=message_dict["text"], files=files, url=url, user_id=user_id)
     db.add(db_item)
-    db.commit()
-    db.refresh(db_item)
+    await db.commit()
+    await db.refresh(db_item)
     return db_item
 
 
-def get_message_by_id(db: Session, message_id: int) -> models.Message:
-    return db.query(models.Message).filter(models.Message.id == message_id).first()
+async def get_message_by_id(db: AsyncSession, message_id: int) -> Optional[models.Message]:
+    rows = tuple(await db.execute(select(models.Message).where(models.Message.id == message_id)))
+    return rows[0][0] if rows else None
 
 
-def delete_message(db: Session, message_id: int) -> None:
-    db.delete(db.query(models.Message).filter(models.Message.id == message_id).first())
-    db.commit()
+async def delete_message(db: AsyncSession, message_id: int) -> None:
+    await db.execute(delete(models.Message).where(models.Message.id == message_id))
 
 
-def tap_like(db: Session, message_id: int, user_id: int) -> bool:
-    has_like = db.query(models.Like).filter(models.Like.message_id == message_id) \
-        .filter(models.Like.user_id == user_id).first()
+async def tap_like(db: AsyncSession, message_id: int, user_id: int) -> bool:
+    has_like = tuple(await db.execute(
+        select(models.Like).where((models.Like.message_id == message_id) & (models.Like.user_id == user_id))))
 
     if has_like:
-        db.delete(has_like)
+        await db.execute(delete(models.Like).where((models.Like.message_id == message_id) &
+                                                   (models.Like.user_id == user_id)))
     else:
-        db_item = models.Like(message_id=message_id, user_id=user_id)
-        db.add(db_item)
-
-    db.commit()
+        db.add(models.Like(message_id=message_id, user_id=user_id))
+        await db.commit()
     return not has_like

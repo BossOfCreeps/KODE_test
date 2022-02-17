@@ -11,7 +11,7 @@ from messages import models
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
-from database import SQLALCHEMY_DATABASE_URL, Base
+from database import Base, DATABASE_URL_SYNC
 
 config = context.config
 
@@ -61,7 +61,7 @@ def run_migrations_online():
 
     """
     alembic_config = config.get_section(config.config_ini_section)
-    alembic_config['sqlalchemy.url'] = SQLALCHEMY_DATABASE_URL
+    alembic_config['sqlalchemy.url'] = DATABASE_URL_SYNC
     engine = engine_from_config(
         alembic_config,
         prefix='sqlalchemy.',
