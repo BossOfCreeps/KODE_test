@@ -16,7 +16,7 @@ Run migrations
 
 ## Pytest
 Run:  
-``pytest tests``  
+``pytest tests --disable-warnings``  
 
 ## Сопроводительный текст
 ### О задании
