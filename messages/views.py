@@ -14,7 +14,7 @@ async def list_messages(offset: int = 0, limit: int = MESSAGES_LIMIT, db: AsyncS
     return await crud.get_messages(db, limit=limit, offset=offset)
 
 
-@router.get("/message", response_model=schemas.MessageFull, responses={404: {"model": Scheme404}})
+@router.get("/message/{message_id}", response_model=schemas.MessageFull, responses={404: {"model": Scheme404}})
 async def get_message(message_id: int, db: AsyncSession = Depends(get_db)):
     mes = await crud.get_message_by_id(db=db, message_id=message_id)
     if not mes:
@@ -34,7 +34,7 @@ async def create_message(mes: schemas.MassageCreate, db: AsyncSession = Depends(
     return await (await crud.create_message(db=db, message=mes, user_id=user.id)).serialize(db)
 
 
-@router.delete("/message", response_model=schemas.StatusOK, responses={404: {"model": Scheme404}})
+@router.delete("/message/{message_id}", response_model=schemas.StatusOK, responses={404: {"model": Scheme404}})
 async def delete_message(message_id: int, db: AsyncSession = Depends(get_db), AuthToken: str = Header(None)):
     mes = await crud.get_message_by_id(db=db, message_id=message_id)
     if not mes:
@@ -48,7 +48,7 @@ async def delete_message(message_id: int, db: AsyncSession = Depends(get_db), Au
     return {"status": "ok"}
 
 
-@router.post("/message/like", response_model=schemas.Like, responses={404: {"model": Scheme404}})
+@router.post("/message/like/{message_id}", response_model=schemas.Like, responses={404: {"model": Scheme404}})
 async def tap_like(message_id: int, db: AsyncSession = Depends(get_db), AuthToken: str = Header(None)):
     mes = await crud.get_message_by_id(db=db, message_id=message_id)
     if not mes:

@@ -37,13 +37,13 @@ async def test_get_message_success(async_client: AsyncClient, db_session: AsyncS
     user_id, _ = await create_user(db_session, "username", "password")
     await create_message(db_session, user_id, text="test text")
 
-    response = await async_client.get("message?message_id=1")
+    response = await async_client.get("message/1")
     assert response.status_code == 200
     assert response.json() == {'text': 'test text', 'id': 1, 'user_id': 1, 'url': None, 'files': []}
 
 
 async def test_get_message_error_message_not_found(async_client: AsyncClient, db_session: AsyncSession) -> None:
-    response = await async_client.get("message?message_id=1")
+    response = await async_client.get("message/1")
     assert response.status_code == 404
     assert response.json() == {'detail': 'Message not found'}
 
@@ -125,7 +125,7 @@ async def test_delete_message_success(async_client: AsyncClient, db_session: Asy
     user_id, token = await create_user(db_session, "username", "password")
     await create_message(db_session, user_id, text="test text")
 
-    response = await async_client.delete("message?message_id=1", headers={"AuthToken": token})
+    response = await async_client.delete("message/1", headers={"AuthToken": token})
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
@@ -133,7 +133,7 @@ async def test_delete_message_success(async_client: AsyncClient, db_session: Asy
 async def test_delete_message_error_no_message(async_client: AsyncClient, db_session: AsyncSession) -> None:
     _, token = await create_user(db_session, "username", "password")
 
-    response = await async_client.delete("message?message_id=1", headers={"AuthToken": token})
+    response = await async_client.delete("message/1", headers={"AuthToken": token})
     assert response.status_code == 404
     assert response.json() == {"detail": "Message not found"}
 
@@ -143,7 +143,7 @@ async def test_delete_message_error_bad_user(async_client: AsyncClient, db_sessi
     _, bad_t = await create_user(db_session, "username_2", "password")
     await create_message(db_session, user_id, text="test text")
 
-    response = await async_client.delete("message?message_id=1", headers={"AuthToken": bad_t})
+    response = await async_client.delete("message/1", headers={"AuthToken": bad_t})
     assert response.status_code == 404
     assert response.json() == {"detail": "This user dont has access to message"}
 
@@ -153,7 +153,7 @@ async def test_like_success(async_client: AsyncClient, db_session: AsyncSession)
     await create_message(db_session, user_id, text="test text")
 
     for i in range(1, 4):
-        response = await async_client.post("message/like?message_id=1", headers={"AuthToken": token})
+        response = await async_client.post("message/like/1", headers={"AuthToken": token})
         assert response.status_code == 200
         assert response.json() == {'like': bool(i % 2)}
 
@@ -163,15 +163,15 @@ async def test_like_success_like_different_for_others(async_client: AsyncClient,
     _, t_2 = await create_user(db_session, "username_2", "password")
     await create_message(db_session, user_id, text="test text")
 
-    assert (await async_client.post("message/like?message_id=1", headers={"AuthToken": t_1})).json() == {'like': True}
-    assert (await async_client.post("message/like?message_id=1", headers={"AuthToken": t_2})).json() == {'like': True}
-    assert (await async_client.post("message/like?message_id=1", headers={"AuthToken": t_1})).json() == {'like': False}
+    assert (await async_client.post("message/like/1", headers={"AuthToken": t_1})).json() == {'like': True}
+    assert (await async_client.post("message/like/1", headers={"AuthToken": t_2})).json() == {'like': True}
+    assert (await async_client.post("message/like/1", headers={"AuthToken": t_1})).json() == {'like': False}
 
 
 async def test_like_error_bad_message(async_client: AsyncClient, db_session: AsyncSession) -> None:
     _, token = await create_user(db_session, "username", "password")
 
-    response = await async_client.post("message/like?message_id=1", headers={"AuthToken": token})
+    response = await async_client.post("message/like/1", headers={"AuthToken": token})
     assert response.status_code == 404
     assert response.json() == {"detail": "Message not found"}
 
@@ -180,6 +180,6 @@ async def test_like_error_bad_user(async_client: AsyncClient, db_session: AsyncS
     user_id, token = await create_user(db_session, "username", "password")
     await create_message(db_session, user_id, text="test text")
 
-    response = await async_client.post("message/like?message_id=1", headers={"AuthToken": ""})
+    response = await async_client.post("message/like/1", headers={"AuthToken": ""})
     assert response.status_code == 404
     assert response.json() == {"detail": "User not found"}
