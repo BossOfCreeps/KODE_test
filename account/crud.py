@@ -1,5 +1,5 @@
 from hashlib import sha256
-from random import choice
+from secrets import choice
 from string import ascii_letters, digits
 from typing import Optional
 

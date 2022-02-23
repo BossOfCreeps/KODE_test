@@ -1,6 +1,6 @@
 import base64
 import os
-from random import choice
+from secrets import choice
 from string import ascii_letters, digits
 
 import requests
