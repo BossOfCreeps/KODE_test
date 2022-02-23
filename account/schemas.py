@@ -9,9 +9,6 @@ class UserCreate(UserBase):
     password: str
 
 
-class AuthToken(BaseModel):
+class Token(BaseModel):
     access_token: str
     token_type: str
-
-    class Config:
-        orm_mode = True
