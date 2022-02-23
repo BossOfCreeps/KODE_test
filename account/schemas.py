@@ -2,7 +2,7 @@ from pydantic import BaseModel
 
 
 class UserBase(BaseModel):
-    login: str
+    username: str
 
 
 class UserCreate(UserBase):
@@ -10,7 +10,8 @@ class UserCreate(UserBase):
 
 
 class AuthToken(BaseModel):
-    token: str
+    access_token: str
+    token_type: str
 
     class Config:
         orm_mode = True
