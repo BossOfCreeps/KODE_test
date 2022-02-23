@@ -7,30 +7,33 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.crud import create_user, create_message
-from constants import MESSAGES_LIMIT
+from constants import MESSAGES_LIMIT as LIMIT
 
 pytestmark = pytest.mark.asyncio(asyncio_mode="strict")
 
 
 async def test_list_messages(async_client: AsyncClient, db_session: AsyncSession) -> None:
+    def pretty(messages: list) -> dict:
+        return {'data': messages, 'messages_lem': 50}
+
     user_id, _ = await create_user(db_session, "username", "password")
     _ = [await create_message(db_session, user_id, text=f"text {i}") for i in range(50)]
 
     response = await async_client.get("messages")
     assert response.status_code == 200
-    assert response.json() == [{'text': f'text {i}', 'id': i + 1, 'user_id': 1} for i in range(MESSAGES_LIMIT)]
+    assert response.json() == pretty([{'text': f'text {i}', 'id': i + 1, 'user_id': 1} for i in range(LIMIT)])
 
-    response = await async_client.get(f"messages?limit={MESSAGES_LIMIT + 2}")
+    response = await async_client.get(f"messages?limit={LIMIT + 2}")
     assert response.status_code == 200
-    assert response.json() == [{'text': f'text {i}', 'id': i + 1, 'user_id': 1} for i in range(MESSAGES_LIMIT + 2)]
+    assert response.json() == pretty([{'text': f'text {i}', 'id': i + 1, 'user_id': 1} for i in range(LIMIT + 2)])
 
     response = await async_client.get("messages?offset=3")
     assert response.status_code == 200
-    assert response.json() == [{'text': f'text {i + 3}', 'id': i + 4, 'user_id': 1} for i in range(MESSAGES_LIMIT)]
+    assert response.json() == pretty([{'text': f'text {i + 3}', 'id': i + 4, 'user_id': 1} for i in range(LIMIT)])
 
-    response = await async_client.get(f"messages?offset=2&limit={MESSAGES_LIMIT + 3}")
+    response = await async_client.get(f"messages?offset=2&limit={LIMIT + 3}")
     assert response.status_code == 200
-    assert response.json() == [{'text': f'text {i + 2}', 'id': i + 3, 'user_id': 1} for i in range(MESSAGES_LIMIT + 3)]
+    assert response.json() == pretty([{'text': f'text {i + 2}', 'id': i + 3, 'user_id': 1} for i in range(LIMIT + 3)])
 
 
 async def test_get_message_success(async_client: AsyncClient, db_session: AsyncSession) -> None:

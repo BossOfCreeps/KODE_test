@@ -36,6 +36,11 @@ class MessageForList(MassageBase):
         orm_mode = True
 
 
+class MessagesScheme(BaseModel):
+    data: list[MessageForList]
+    messages_lem: int
+
+
 class MessageFull(MassageBase):
     id: int
     user_id: int

@@ -6,14 +6,14 @@ from account.models import User
 from constants import MESSAGES_LIMIT, Scheme404
 from database import get_db
 from messages.crud import get_message_by_id, tap_like, get_messages, create_message, delete_message
-from messages.schemas import MessageForList, Like, StatusOK, MessageFull, MassageCreate
+from messages.schemas import Like, StatusOK, MessageFull, MassageCreate, MessagesScheme
 
 router = APIRouter()
 
 
-@router.get("/messages", response_model=list[MessageForList])
+@router.get("/messages", response_model=MessagesScheme)
 async def list_messages(offset: int = 0, limit: int = MESSAGES_LIMIT, db: AsyncSession = Depends(get_db)):
-    return await get_messages(db, limit=limit, offset=offset)
+    return {"data": await get_messages(db, limit=limit, offset=offset), "messages_lem": len(await get_messages(db))}
 
 
 @router.get("/message/{message_id}", response_model=MessageFull, responses={404: {"model": Scheme404}})

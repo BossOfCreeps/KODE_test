@@ -9,8 +9,8 @@ from messages import models, schemas
 from messages.lib import save_file_from_url, save_file_from_base64
 
 
-async def get_messages(db: AsyncSession, limit: int, offset: int) -> list[schemas.MessageForList]:
-    return (await db.execute(select(models.Message).limit(limit).offset(offset))).scalars().fetchall()
+async def get_messages(db: AsyncSession, limit: Optional[int] = None, offset: int = 0) -> list[schemas.MessageForList]:
+    return [mes for mes in (await db.execute(select(models.Message).limit(limit).offset(offset))).scalars().fetchall()]
 
 
 async def create_message(db: AsyncSession, message: schemas.MassageCreate, user_id: int) -> models.Message:
