@@ -10,7 +10,7 @@ from messages.lib import save_file_from_url, save_file_from_base64
 
 
 async def get_messages(db: AsyncSession, limit: int, offset: int) -> list[schemas.MessageForList]:
-    return list(el[0] for el in tuple(await db.execute(select(models.Message))))[offset:][:limit]
+    return (await db.execute(select(models.Message).limit(limit).offset(offset))).scalars().fetchall()
 
 
 async def create_message(db: AsyncSession, message: schemas.MassageCreate, user_id: int) -> models.Message:
@@ -39,8 +39,7 @@ async def create_message(db: AsyncSession, message: schemas.MassageCreate, user_
 
 
 async def get_message_by_id(db: AsyncSession, message_id: int) -> Optional[models.Message]:
-    rows = tuple(await db.execute(select(models.Message).where(models.Message.id == message_id)))
-    return rows[0][0] if rows else None
+    return await db.scalar(select(models.Message).where(models.Message.id == message_id))
 
 
 async def delete_message(db: AsyncSession, message_id: int) -> None:

@@ -21,9 +21,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 
 async def get_user_by_login(db: AsyncSession, login: str) -> Optional[models.User]:
-    rows = list(await db.execute(select(models.User).where(models.User.login == login)))
-    row = rows[0] if rows else []
-    return row[0] if row else None
+    return await db.scalar(select(models.User).where(models.User.login == login))
 
 
 async def create_user(db: AsyncSession, user_scheme: schemas.UserCreate) -> models.User:
@@ -44,6 +42,5 @@ async def create_auth_token(db: AsyncSession, user: models.User, expires_delta: 
 
 
 async def get_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)) -> Optional[models.User]:
-    rows = list(await db.execute(select(models.User, models.AuthToken).where(
-        (models.AuthToken.token == token) & (models.User.id == models.AuthToken.user_id))))
-    return rows[0][0] if rows else []
+    return await db.scalar(select(models.User, models.AuthToken).where(
+        (models.AuthToken.token == token) & (models.User.id == models.AuthToken.user_id)))

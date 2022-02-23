@@ -31,8 +31,7 @@ async def test_login_success(async_client: AsyncClient, db_session: AsyncSession
 
 async def test_login_error_no_user(async_client: AsyncClient, db_session: AsyncSession):
     response = await async_client.post("account/login", data={"username": "username", "password": "password"})
-    assert response.status_code == 404
-    print(response.json())
+    assert response.status_code == 401
     assert response.json() == {"detail": "User not found"}
 
 
@@ -41,5 +40,4 @@ async def test_login_error_bad_password(async_client: AsyncClient, db_session: A
 
     response = await async_client.post("account/login", data={"username": "username", "password": "bad_password"})
     assert response.status_code == 404
-    print(response.json())
     assert response.json() == {"detail": "Bad password"}
