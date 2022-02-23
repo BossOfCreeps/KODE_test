@@ -3,11 +3,11 @@ from functools import wraps
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from account.crud import get_user
+from account.service import get_user
 from account.models import User
 from constants import MESSAGES_LIMIT, Scheme404
 from database import get_db
-from messages.crud import add_like, get_messages, create_message, delete_message, get_message, del_like
+from messages.service import add_like, get_messages, create_message, delete_message, get_message, del_like
 from messages.lib import message_exist, user_exist
 from messages.models import Message
 from messages.schemas import Like, StatusOK, MessageFull, MassageCreate, MessagesScheme
