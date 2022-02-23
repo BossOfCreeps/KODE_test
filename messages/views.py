@@ -1,16 +1,16 @@
-from functools import wraps
+from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from account.service import get_user
 from account.models import User
+from account.service import get_user
 from constants import MESSAGES_LIMIT, Scheme404
 from database import get_db
-from messages.service import add_like, get_messages, create_message, delete_message, get_message, del_like
 from messages.lib import message_exist, user_exist
 from messages.models import Message
-from messages.schemas import Like, StatusOK, MessageFull, MassageCreate, MessagesScheme
+from messages.schemas import Like, StatusOK, MessageFull, MessagesScheme
+from messages.service import add_like, get_messages, create_message, delete_message, get_message, del_like
 
 router = APIRouter()
 
@@ -28,12 +28,13 @@ async def get_message_endpoint(message: Message = Depends(get_message), db: Asyn
 
 @router.post("/message", response_model=MessageFull, responses={404: {"model": Scheme404}})
 @user_exist
-async def add_message_endpoint(message: MassageCreate, db: AsyncSession = Depends(get_db),
-                               user: User = Depends(get_user)):
-    if not (message.text or message.files or message.url):
+async def add_message_endpoint(text: str = Form(None), url: str = Form(None),
+                               db: AsyncSession = Depends(get_db), user: User = Depends(get_user),
+                               files: List[UploadFile] = File(None)):
+    if not (text or files or url):
         raise HTTPException(status_code=404, detail="Must be text or files or url")
 
-    return await (await create_message(db=db, message=message, user_id=user.id)).serialize(db)
+    return await (await create_message(db=db, text=text, url=url, files=files, user_id=user.id)).serialize(db)
 
 
 @router.delete("/message/{message_id}", response_model=StatusOK, responses={404: {"model": Scheme404}})

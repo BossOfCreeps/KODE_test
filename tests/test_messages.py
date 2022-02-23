@@ -1,4 +1,3 @@
-import base64
 import os
 
 import pytest
@@ -6,8 +5,8 @@ import requests
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.crud import create_user, create_message
 from constants import MESSAGES_LIMIT as LIMIT
+from tests.crud import create_user, create_message
 
 pytestmark = pytest.mark.asyncio(asyncio_mode="strict")
 
@@ -54,7 +53,7 @@ async def test_get_message_error_message_not_found(async_client: AsyncClient, db
 async def test_create_message_success_text(async_client: AsyncClient, db_session: AsyncSession) -> None:
     _, token = await create_user(db_session, "username", "password")
 
-    response = await async_client.post("message", json={"text": "text"}, headers={"Authorization": f"Bearer {token}"})
+    response = await async_client.post("message", data={"text": "text"}, headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
     assert response.json() == {'text': 'text', 'id': 1, 'user_id': 1, 'url': None, 'files': []}
 
@@ -76,17 +75,16 @@ async def test_create_message_success_files(async_client: AsyncClient, db_sessio
         # вроде принято мокать работу с бинарными файлами, но мне не нравится когда проверяют полностью замоканный код,
         # при том, что можно просто положить маленький файл, чтобы проверить на нём и быть на 100% уверенным, что эта
         # часть кода работает
-        with open(os.path.join(path, file), "rb") as file_object:
-            files_to_send.append({"name": file, "value": base64.b64encode(file_object.read()).decode()})
+        files_to_send.append(('files', open(os.path.join(path, file), 'rb')))
 
-    re = await async_client.post("message", json={"files": files_to_send}, headers={"Authorization": f"Bearer {token}"})
+    re = await async_client.post("message", files=files_to_send, headers={"Authorization": f"Bearer {token}"})
     assert re.status_code == 200
     data = re.json()
 
     # compare files
     for number, file in enumerate(data["files"]):
         with open(os.path.join(os.curdir, "media", file['url'].split('/')[-1]), "rb") as server_file:
-            assert base64.b64encode(server_file.read()).decode() == files_to_send[number]["value"]
+            assert server_file.read() == open(os.path.join(path, os.listdir(path)[number]), "rb").read()
 
     del data["files"]
     # compare other data
@@ -96,7 +94,7 @@ async def test_create_message_success_files(async_client: AsyncClient, db_sessio
 async def test_create_message_success_url(async_client: AsyncClient, db_session: AsyncSession) -> None:
     _, token = await create_user(db_session, "username", "password")
 
-    resp = await async_client.post("message", json={"url": "https://www.opengraph.xyz"},
+    resp = await async_client.post("message", data={"url": "https://www.opengraph.xyz"},
                                    headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     data = resp.json()

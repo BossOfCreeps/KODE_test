@@ -1,15 +1,15 @@
 import warnings
 from typing import Optional
 
-from fastapi import Depends
+from fastapi import Depends, UploadFile
 from opengraph_py3 import OpenGraph
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from messages.lib import save_file_from_url, save_file_from_base64
+from messages.lib import save_file_from_url, save_file_from_form
 from messages.models import Message, MessageFile, MessageUrl, Like
-from messages.schemas import MassageCreate, MessageForList
+from messages.schemas import MessageForList
 
 
 async def get_message(message_id: int, db: AsyncSession = Depends(get_db)) -> Optional[Message]:
@@ -20,25 +20,22 @@ async def get_messages(db: AsyncSession, limit: Optional[int] = None, offset: in
     return [mes for mes in (await db.execute(select(Message).limit(limit).offset(offset))).scalars().fetchall()]
 
 
-async def create_message(db: AsyncSession, message: MassageCreate, user_id: int) -> Message:
-    message_dict = message.dict()
+async def create_message(db: AsyncSession, text: str, url: str, files: list[UploadFile], user_id: int) -> Message:
+    files = [MessageFile(url=await save_file_from_form(file)) for file in files] if files else []
 
-    # файлы передаются в base64
-    files = [MessageFile(url=save_file_from_base64(**file)) for file in message_dict["files"]]
-
-    url = None
+    message_url = None
     # Skip warning because lib always say, that bs4 use lxml parser
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         # Get image and title from url by open graph
-        graph = OpenGraph(url=message_dict["url"], parser="lxml")
+        graph = OpenGraph(url=url, parser="lxml")
         if graph.is_valid() and "image" in graph:
-            url = MessageUrl(
+            message_url = MessageUrl(
                 image=save_file_from_url(graph["image"]),
                 title=graph["title"] if "title" in graph else None
             )
 
-    db_item = Message(text=message_dict["text"], files=files, url=url, user_id=user_id)
+    db_item = Message(text=text, files=files, url=message_url, user_id=user_id)
     db.add(db_item)
     await db.commit()
     await db.refresh(db_item)
