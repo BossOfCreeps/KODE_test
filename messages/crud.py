@@ -1,23 +1,30 @@
 import warnings
 from typing import Optional
 
+from fastapi import Depends
 from opengraph_py3 import OpenGraph
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from messages import models, schemas
+from database import get_db
 from messages.lib import save_file_from_url, save_file_from_base64
+from messages.models import Message, MessageFile, MessageUrl, Like
+from messages.schemas import MassageCreate, MessageForList
 
 
-async def get_messages(db: AsyncSession, limit: Optional[int] = None, offset: int = 0) -> list[schemas.MessageForList]:
-    return [mes for mes in (await db.execute(select(models.Message).limit(limit).offset(offset))).scalars().fetchall()]
+async def get_message(message_id: int, db: AsyncSession = Depends(get_db)) -> Optional[Message]:
+    return await db.scalar(select(Message).where(Message.id == message_id))
 
 
-async def create_message(db: AsyncSession, message: schemas.MassageCreate, user_id: int) -> models.Message:
+async def get_messages(db: AsyncSession, limit: Optional[int] = None, offset: int = 0) -> list[MessageForList]:
+    return [mes for mes in (await db.execute(select(Message).limit(limit).offset(offset))).scalars().fetchall()]
+
+
+async def create_message(db: AsyncSession, message: MassageCreate, user_id: int) -> Message:
     message_dict = message.dict()
 
     # файлы передаются в base64
-    files = [models.MessageFile(url=save_file_from_base64(**file)) for file in message_dict["files"]]
+    files = [MessageFile(url=save_file_from_base64(**file)) for file in message_dict["files"]]
 
     url = None
     # Skip warning because lib always say, that bs4 use lxml parser
@@ -26,34 +33,28 @@ async def create_message(db: AsyncSession, message: schemas.MassageCreate, user_
         # Get image and title from url by open graph
         graph = OpenGraph(url=message_dict["url"], parser="lxml")
         if graph.is_valid() and "image" in graph:
-            url = models.MessageUrl(
+            url = MessageUrl(
                 image=save_file_from_url(graph["image"]),
                 title=graph["title"] if "title" in graph else None
             )
 
-    db_item = models.Message(text=message_dict["text"], files=files, url=url, user_id=user_id)
+    db_item = Message(text=message_dict["text"], files=files, url=url, user_id=user_id)
     db.add(db_item)
     await db.commit()
     await db.refresh(db_item)
     return db_item
 
 
-async def get_message_by_id(db: AsyncSession, message_id: int) -> Optional[models.Message]:
-    return await db.scalar(select(models.Message).where(models.Message.id == message_id))
-
-
 async def delete_message(db: AsyncSession, message_id: int) -> None:
-    await db.execute(delete(models.Message).where(models.Message.id == message_id))
+    await db.execute(delete(Message).where(Message.id == message_id))
 
 
-async def tap_like(db: AsyncSession, message_id: int, user_id: int) -> bool:
-    has_like = tuple(await db.execute(
-        select(models.Like).where((models.Like.message_id == message_id) & (models.Like.user_id == user_id))))
+async def add_like(db: AsyncSession, message_id: int, user_id: int) -> bool:
+    db.add(Like(message_id=message_id, user_id=user_id))
+    await db.commit()
+    return True
 
-    if has_like:
-        await db.execute(delete(models.Like).where((models.Like.message_id == message_id) &
-                                                   (models.Like.user_id == user_id)))
-    else:
-        db.add(models.Like(message_id=message_id, user_id=user_id))
-        await db.commit()
-    return not has_like
+
+async def del_like(db: AsyncSession, message_id: int, user_id: int) -> bool:
+    await db.execute(delete(Like).where((Like.message_id == message_id) & (Like.user_id == user_id)))
+    return False

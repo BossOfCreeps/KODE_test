@@ -47,7 +47,7 @@ async def test_get_message_success(async_client: AsyncClient, db_session: AsyncS
 
 async def test_get_message_error_message_not_found(async_client: AsyncClient, db_session: AsyncSession) -> None:
     response = await async_client.get("message/1")
-    assert response.status_code == 404
+    assert response.status_code == 401
     assert response.json() == {'detail': 'Message not found'}
 
 
@@ -138,7 +138,7 @@ async def test_delete_message_error_no_message(async_client: AsyncClient, db_ses
     _, token = await create_user(db_session, "username", "password")
 
     response = await async_client.delete("message/1", headers={"Authorization": f"Bearer {token}"})
-    assert response.status_code == 404
+    assert response.status_code == 401
     assert response.json() == {"detail": "Message not found"}
 
 
@@ -157,7 +157,8 @@ async def test_like_success(async_client: AsyncClient, db_session: AsyncSession)
     await create_message(db_session, user_id, text="test text")
 
     for i in range(1, 4):
-        response = await async_client.post("message/like/1", headers={"Authorization": f"Bearer {token}"})
+        is_dis = "" if bool(i % 2) else "dis"
+        response = await async_client.post(f"message/{is_dis}like/1", headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 200
         assert response.json() == {'like': bool(i % 2)}
 
@@ -169,14 +170,14 @@ async def test_like_success_like_different_for_others(async_client: AsyncClient,
 
     assert (await async_client.post("message/like/1", headers={"Authorization": f"Bearer {t1}"})).json()['like']
     assert (await async_client.post("message/like/1", headers={"Authorization": f"Bearer {t2}"})).json()['like']
-    assert not (await async_client.post("message/like/1", headers={"Authorization": f"Bearer {t1}"})).json()['like']
+    assert not (await async_client.post("message/dislike/1", headers={"Authorization": f"Bearer {t1}"})).json()['like']
 
 
 async def test_like_error_bad_message(async_client: AsyncClient, db_session: AsyncSession) -> None:
     _, token = await create_user(db_session, "username", "password")
 
     response = await async_client.post("message/like/1", headers={"Authorization": f"Bearer {token}"})
-    assert response.status_code == 404
+    assert response.status_code == 401
     assert response.json() == {"detail": "Message not found"}
 
 
@@ -185,5 +186,5 @@ async def test_like_error_bad_user(async_client: AsyncClient, db_session: AsyncS
     await create_message(db_session, user_id, text="test text")
 
     response = await async_client.post("message/like/1", headers={"Authorization": "Bearer"})
-    assert response.status_code == 404
+    assert response.status_code == 401
     assert response.json() == {"detail": "User not found"}

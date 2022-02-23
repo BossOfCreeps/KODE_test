@@ -19,13 +19,13 @@ class Message(Base):
     likes = relationship("Like", back_populates="message")
 
     async def serialize(self, db: AsyncSession) -> dict:
-        files = await db.scalar(select(MessageFile).where(MessageFile.message_id == self.id))
+        files = [f[0] for f in list(await db.execute(select(MessageFile).where(MessageFile.message_id == self.id)))]
         url = await db.scalar(select(MessageUrl).where(MessageUrl.message_id == self.id))
         return {
             "id": self.id,
             "user_id": self.user_id,
             "text": self.text,
-            "files": [await file.serialize(db) for file in files],
+            "files": [await file.serialize(db) for file in files] if files else [],
             "url": (await url.serialize(db)) if url else None
         }
 
