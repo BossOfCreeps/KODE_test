@@ -18,22 +18,17 @@ class MassageBase(BaseModel):
     text: Optional[str] = None
 
 
-class MassageFileCreate(BaseModel):
-    name: str
-    value: str
-
-
-class MassageCreate(MassageBase):
-    files: Optional[list[MassageFileCreate]] = []
-    url: Optional[str] = None
-
-
 class MessageForList(MassageBase):
     id: int
     user_id: int
 
     class Config:
         orm_mode = True
+
+
+class MessagesScheme(BaseModel):
+    data: list[MessageForList]
+    messages_lem: int
 
 
 class MessageFull(MassageBase):

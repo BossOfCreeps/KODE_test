@@ -1,61 +1,64 @@
-from fastapi import APIRouter, Depends, Header, HTTPException
+from typing import List
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from account.crud import get_user_by_token
+from account.models import User
+from account.service import get_user
 from constants import MESSAGES_LIMIT, Scheme404
 from database import get_db
-from messages import schemas, crud
+from messages.lib import message_exist, user_exist
+from messages.models import Message
+from messages.schemas import Like, StatusOK, MessageFull, MessagesScheme
+from messages.service import add_like, get_messages, create_message, delete_message, get_message, del_like
 
 router = APIRouter()
 
 
-@router.get("/messages", response_model=list[schemas.MessageForList])
-async def list_messages(offset: int = 0, limit: int = MESSAGES_LIMIT, db: AsyncSession = Depends(get_db)):
-    return await crud.get_messages(db, limit=limit, offset=offset)
+@router.get("/messages", response_model=MessagesScheme)
+async def list_messages_endpoint(offset: int = 0, limit: int = MESSAGES_LIMIT, db: AsyncSession = Depends(get_db)):
+    return {"data": await get_messages(db, limit=limit, offset=offset), "messages_lem": len(await get_messages(db))}
 
 
-@router.get("/message", response_model=schemas.MessageFull, responses={404: {"model": Scheme404}})
-async def get_message(message_id: int, db: AsyncSession = Depends(get_db)):
-    mes = await crud.get_message_by_id(db=db, message_id=message_id)
-    if not mes:
-        raise HTTPException(status_code=404, detail="Message not found")
-    return await mes.serialize(db)
+@router.get("/message/{message_id}", response_model=MessageFull, responses={404: {"model": Scheme404}})
+@message_exist
+async def get_message_endpoint(message: Message = Depends(get_message), db: AsyncSession = Depends(get_db)):
+    return await message.serialize(db)
 
 
-@router.post("/message", response_model=schemas.MessageFull, responses={404: {"model": Scheme404}})
-async def create_message(mes: schemas.MassageCreate, db: AsyncSession = Depends(get_db), AuthToken: str = Header(None)):
-    if not (mes.text or mes.files or mes.url):
+@router.post("/message", response_model=MessageFull, responses={404: {"model": Scheme404}})
+@user_exist
+async def add_message_endpoint(text: str = Form(None), url: str = Form(None),
+                               db: AsyncSession = Depends(get_db), user: User = Depends(get_user),
+                               files: List[UploadFile] = File(None)):
+    if not (text or files or url):
         raise HTTPException(status_code=404, detail="Must be text or files or url")
 
-    user = await get_user_by_token(db, user_token=AuthToken)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return await (await crud.create_message(db=db, message=mes, user_id=user.id)).serialize(db)
+    return await (await create_message(db=db, text=text, url=url, files=files, user_id=user.id)).serialize(db)
 
 
-@router.delete("/message", response_model=schemas.StatusOK, responses={404: {"model": Scheme404}})
-async def delete_message(message_id: int, db: AsyncSession = Depends(get_db), AuthToken: str = Header(None)):
-    mes = await crud.get_message_by_id(db=db, message_id=message_id)
-    if not mes:
-        raise HTTPException(status_code=404, detail="Message not found")
-
-    user = await get_user_by_token(db, user_token=AuthToken)
-    if mes.user_id != user.id:
+@router.delete("/message/{message_id}", response_model=StatusOK, responses={404: {"model": Scheme404}})
+@message_exist
+async def delete_message_endpoint(message: Message = Depends(get_message), db: AsyncSession = Depends(get_db),
+                                  user: User = Depends(get_user)):
+    if message.user_id != user.id:
         raise HTTPException(status_code=404, detail="This user dont has access to message")
 
-    await crud.delete_message(db=db, message_id=message_id)
+    await delete_message(db=db, message_id=message.id)
     return {"status": "ok"}
 
 
-@router.post("/message/like", response_model=schemas.Like, responses={404: {"model": Scheme404}})
-async def tap_like(message_id: int, db: AsyncSession = Depends(get_db), AuthToken: str = Header(None)):
-    mes = await crud.get_message_by_id(db=db, message_id=message_id)
-    if not mes:
-        raise HTTPException(status_code=404, detail="Message not found")
+@router.post("/message/like/{message_id}", response_model=Like, responses={404: {"model": Scheme404}})
+@message_exist
+@user_exist
+async def like_endpoint(message: Message = Depends(get_message), db: AsyncSession = Depends(get_db),
+                        user: User = Depends(get_user)):
+    return {"like": await add_like(db=db, message_id=message.id, user_id=user.id)}
 
-    user = await get_user_by_token(db, user_token=AuthToken)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
 
-    return {"like": await crud.tap_like(db=db, message_id=message_id, user_id=user.id)}
+@router.post("/message/dislike/{message_id}", response_model=Like, responses={404: {"model": Scheme404}})
+@message_exist
+@user_exist
+async def dislike_endpoint(message: Message = Depends(get_message), db: AsyncSession = Depends(get_db),
+                           user: User = Depends(get_user)):
+    return {"like": await del_like(db=db, message_id=message.id, user_id=user.id)}
